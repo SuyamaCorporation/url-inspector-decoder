@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>URL構造インスペクター＆デコーダー</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+*:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+.fade-in { animation: fadeIn 0.3s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen p-4">
+<div class="max-w-5xl mx-auto">
+  <h1 class="text-2xl font-bold mb-1 text-blue-400">URL構造インスペクター＆デコーダー</h1>
+  <p class="text-gray-400 text-sm mb-6">URLを貼り付けて構造を分解・分析・編集します</p>
+
+  <div class="bg-gray-900 rounded-xl p-4 mb-4">
+    <label for="urlInput" class="block text-sm font-medium text-gray-300 mb-2">URL入力</label>
+    <textarea id="urlInput" rows="3" placeholder="https://example.com:8080/path/to/page?foo=bar&baz=hello%20world#section"
+      class="w-full bg-gray-800 border border-gray-700 rounded-lg p-3 text-sm font-mono text-gray-100 resize-none focus:border-blue-500 focus:outline-none"
+      aria-label="URL入力欄"></textarea>
+    <div class="flex gap-2 mt-2">
+      <button onclick="parseURL()" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg text-sm font-medium transition-colors">解析</button>
+      <button onclick="clearAll()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg text-sm transition-colors">クリア</button>
+    </div>
+  </div>
+
+  <div id="result" class="hidden fade-in">
+    <div id="structureCards" class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4"></div>
+
+    <div class="bg-gray-900 rounded-xl p-4 mb-4">
+      <h2 class="text-sm font-semibold text-gray-300 mb-3">クエリパラメータ（インライン編集可）</h2>
+      <div id="paramsTable"></div>
+      <button onclick="addParam()" class="mt-2 text-xs text-blue-400 hover:text-blue-300 border border-blue-700 hover:border-blue-500 px-3 py-1 rounded transition-colors">+ パラメータ追加</button>
+    </div>
+
+    <div class="bg-gray-900 rounded-xl p-4 mb-4">
+      <h2 class="text-sm font-semibold text-gray-300 mb-2">再組立てURL</h2>
+      <div class="flex items-center gap-2">
+        <code id="rebuiltUrl" class="flex-1 bg-gray-800 rounded p-2 text-xs font-mono text-green-400 break-all"></code>
+        <button onclick="copyText('rebuiltUrl')" class="shrink-0 bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded text-xs transition-colors" aria-label="URLをコピー">コピー</button>
+      </div>
+    </div>
+
+    <div class="bg-gray-900 rounded-xl p-4 mb-4">
+      <h2 class="text-sm font-semibold text-gray-300 mb-3">統計情報</h2>
+      <div id="statsArea" class="grid grid-cols-3 gap-3"></div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      <div class="bg-gray-900 rounded-xl p-4">
+        <h2 class="text-sm font-semibold text-gray-300 mb-2">%エンコード/デコード 双方向変換</h2>
+        <textarea id="encodeInput" rows="2" placeholder="変換したいテキスト"
+          class="w-full bg-gray-800 border border-gray-700 rounded p-2 text-xs font-mono mb-2 focus:outline-none focus:border-blue-500"></textarea>
+        <div class="flex gap-2 mb-2">
+          <button onclick="encodeText()" class="bg-indigo-700 hover:bg-indigo-600 px-3 py-1 rounded text-xs transition-colors">エンコード</button>
+          <button onclick="decodeText()" class="bg-teal-700 hover:bg-teal-600 px-3 py-1 rounded text-xs transition-colors">デコード</button>
+        </div>
+        <div class="flex items-center gap-2">
+          <code id="encodeOutput" class="flex-1 bg-gray-800 rounded p-2 text-xs font-mono text-yellow-300 break-all min-h-8"></code>
+          <button onclick="copyText('encodeOutput')" class="shrink-0 bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded text-xs transition-colors" aria-label="変換結果をコピー">コピー</button>
+        </div>
+      </div>
+
+      <div class="bg-gray-900 rounded-xl p-4">
+        <h2 class="text-sm font-semibold text-gray-300 mb-2">相対URL → 絶対URL変換</h2>
+        <input id="baseUrl" type="text" placeholder="ベースURL: https://example.com/path/"
+          class="w-full bg-gray-800 border border-gray-700 rounded p-2 text-xs font-mono mb-2 focus:outline-none focus:border-blue-500">
+        <input id="relativeUrl" type="text" placeholder="相対URL: ../other/page.html"
+          class="w-full bg-gray-800 border border-gray-700 rounded p-2 text-xs font-mono mb-2 focus:outline-none focus:border-blue-500">
+        <button onclick="resolveRelative()" class="bg-purple-700 hover:bg-purple-600 px-3 py-1 rounded text-xs transition-colors mb-2">変換</button>
+        <div class="flex items-center gap-2">
+          <code id="resolvedUrl" class="flex-1 bg-gray-800 rounded p-2 text-xs font-mono text-purple-300 break-all min-h-8"></code>
+          <button onclick="copyText('resolvedUrl')" class="shrink-0 bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded text-xs transition-colors" aria-label="絶対URLをコピー">コピー</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="errorMsg" class="hidden bg-red-900/50 border border-red-700 rounded-xl p-3 text-red-300 text-sm"></div>
+</div>
+
+<script>
+function htmlEscape(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+let currentParams = [];
+let currentParsed = null;
+
+const colorMap = {
+  scheme: 'bg-blue-900 border-blue-700 text-blue-300',
+  host: 'bg-green-900 border-green-700 text-green-300',
+  port: 'bg-yellow-900 border-yellow-700 text-yellow-300',
+  path: 'bg-orange-900 border-orange-700 text-orange-300',
+  query: 'bg-purple-900 border-purple-700 text-purple-300',
+  fragment: 'bg-pink-900 border-pink-700 text-pink-300',
+};
+
+function parseURL() {
+  const raw = document.getElementById('urlInput').value.trim();
+  const errEl = document.getElementById('errorMsg');
+  errEl.classList.add('hidden');
+  if (!raw) return;
+
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    errEl.textContent = '無効なURLです。スキーム（https://等）を含む完全なURLを入力してください。';
+    errEl.classList.remove('hidden');
+    document.getElementById('result').classList.add('hidden');
+    return;
+  }
+
+  currentParsed = url;
+  currentParams = [];
+  url.searchParams.forEach((v, k) => currentParams.push({ k, v }));
+
+  renderCards(url);
+  renderParams();
+  renderStats(raw, url);
+  rebuildUrl();
+  document.getElementById('result').classList.remove('hidden');
+}
+
+function renderCards(url) {
+  const parts = [
+    { label: 'スキーム', value: url.protocol.replace(':',''), key: 'scheme' },
+    { label: 'ホスト', value: url.hostname, key: 'host' },
+    { label: 'ポート', value: url.port || '(デフォルト)', key: 'port' },
+    { label: 'パス', value: url.pathname, key: 'path' },
+    { label: 'クエリ文字列', value: url.search || '(なし)', key: 'query' },
+    { label: 'フラグメント', value: url.hash || '(なし)', key: 'fragment' },
+  ];
+  const container = document.getElementById('structureCards');
+  container.innerHTML = '';
+  parts.forEach(p => {
+    const div = document.createElement('div');
+    div.className = `border rounded-xl p-3 ${colorMap[p.key]}`;
+    div.innerHTML = `<div class="text-xs opacity-70 mb-1">${htmlEscape(p.label)}</div><code class="text-sm font-mono break-all">${htmlEscape(p.value)}</code>`;
+    container.appendChild(div);
+  });
+}
+
+function renderParams() {
+  const container = document.getElementById('paramsTable');
+  if (currentParams.length === 0) {
+    container.innerHTML = '<p class="text-gray-500 text-xs">クエリパラメータなし</p>';
+    return;
+  }
+  let html = '<div class="space-y-2">';
+  currentParams.forEach((p, i) => {
+    const decoded = (() => { try { return decodeURIComponent(p.v); } catch { return p.v; } })();
+    html += `<div class="flex items-center gap-2 bg-gray-800 rounded-lg p-2">
+      <input value="${htmlEscape(p.k)}" data-idx="${i}" data-field="k"
+        onchange="updateParam(this)" class="w-32 bg-gray-700 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 text-purple-300" aria-label="パラメータキー">
+      <span class="text-gray-500">=</span>
+      <input value="${htmlEscape(decoded)}" data-idx="${i}" data-field="v"
+        onchange="updateParam(this)" class="flex-1 bg-gray-700 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-500" aria-label="パラメータ値">
+      <code class="text-xs text-gray-500 w-32 truncate" title="${htmlEscape(encodeURIComponent(decoded))}">${htmlEscape(encodeURIComponent(decoded))}</code>
+      <button onclick="removeParam(${i})" class="text-red-400 hover:text-red-300 text-xs px-2" aria-label="パラメータ削除">✕</button>
+    </div>`;
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function updateParam(el) {
+  const idx = parseInt(el.dataset.idx);
+  const field = el.dataset.field;
+  currentParams[idx][field] = el.value;
+  rebuildUrl();
+}
+
+function removeParam(idx) {
+  currentParams.splice(idx, 1);
+  renderParams();
+  rebuildUrl();
+}
+
+function addParam() {
+  currentParams.push({ k: 'key', v: 'value' });
+  renderParams();
+  rebuildUrl();
+}
+
+function rebuildUrl() {
+  if (!currentParsed) return;
+  const u = new URL(currentParsed.href);
+  u.search = '';
+  currentParams.forEach(p => { if (p.k) u.searchParams.append(p.k, p.v); });
+  document.getElementById('rebuiltUrl').textContent = u.href;
+}
+
+function renderStats(raw, url) {
+  const encoded = (raw.match(/%[0-9A-Fa-f]{2}/g) || []).length;
+  const stats = [
+    { label: 'URL長', value: raw.length + ' 文字' },
+    { label: 'パラメータ数', value: currentParams.length + ' 件' },
+    { label: 'エンコード文字数', value: encoded + ' 箇所' },
+  ];
+  const container = document.getElementById('statsArea');
+  container.innerHTML = '';
+  stats.forEach(s => {
+    const div = document.createElement('div');
+    div.className = 'bg-gray-800 rounded-lg p-3 text-center';
+    div.innerHTML = `<div class="text-2xl font-bold text-blue-400">${htmlEscape(s.value)}</div><div class="text-xs text-gray-400 mt-1">${htmlEscape(s.label)}</div>`;
+    container.appendChild(div);
+  });
+}
+
+function encodeText() {
+  const v = document.getElementById('encodeInput').value;
+  document.getElementById('encodeOutput').textContent = encodeURIComponent(v);
+}
+
+function decodeText() {
+  const v = document.getElementById('encodeInput').value;
+  try {
+    document.getElementById('encodeOutput').textContent = decodeURIComponent(v);
+  } catch {
+    document.getElementById('encodeOutput').textContent = '無効なエンコード文字列です';
+  }
+}
+
+function resolveRelative() {
+  const base = document.getElementById('baseUrl').value.trim();
+  const rel = document.getElementById('relativeUrl').value.trim();
+  try {
+    const resolved = new URL(rel, base);
+    document.getElementById('resolvedUrl').textContent = resolved.href;
+  } catch (e) {
+    document.getElementById('resolvedUrl').textContent = 'エラー: ' + e.message;
+  }
+}
+
+function copyText(id) {
+  const text = document.getElementById(id).textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector(`[onclick="copyText('${id}')"]`);
+    if (btn) { btn.textContent = '✓'; setTimeout(() => btn.textContent = 'コピー', 1500); }
+  });
+}
+
+function clearAll() {
+  document.getElementById('urlInput').value = '';
+  document.getElementById('result').classList.add('hidden');
+  document.getElementById('errorMsg').classList.add('hidden');
+  currentParams = [];
+  currentParsed = null;
+}
+
+document.getElementById('urlInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.ctrlKey) parseURL();
+});
+</script>
+</body>
+</html>
